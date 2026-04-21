@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Resume Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --grad-1: #0f0c29;
+      --grad-2: #302b63;
+      --grad-3: #24243e;
+    }
+    * { font-family: 'DM Sans', sans-serif; }
+    h1, h2, h3, .font-display { font-family: 'Syne', sans-serif; }
+
+    body {
+      background: linear-gradient(135deg, var(--grad-1), var(--grad-2), var(--grad-3));
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body.light {
+      --grad-1: #e0e7ff;
+      --grad-2: #c7d2fe;
+      --grad-3: #ddd6fe;
+    }
+
+    /* Animated blobs */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.18;
+      pointer-events: none;
+      z-index: 0;
+      animation: float 12s ease-in-out infinite;
+    }
+    .blob-1 { width: 500px; height: 500px; background: #6366f1; top: -120px; left: -120px; animation-delay: 0s; }
+    .blob-2 { width: 400px; height: 400px; background: #8b5cf6; bottom: -80px; right: -80px; animation-delay: -4s; }
+    .blob-3 { width: 300px; height: 300px; background: #06b6d4; top: 40%; left: 60%; animation-delay: -8s; }
+    @keyframes float {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(30px, -30px) scale(1.05); }
+      66% { transform: translate(-20px, 20px) scale(0.95); }
+    }
+
+    /* Glass card */
+    .glass {
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .light .glass {
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.12);
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed rgba(139, 92, 246, 0.5);
+      transition: all 0.3s ease;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.08);
+      transform: scale(1.01);
+    }
+
+    /* Gradient button */
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+      background-size: 200% 200%;
+      animation: gradShift 3s ease infinite;
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(139, 92, 246, 0.45);
+    }
+    @keyframes gradShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    /* Spinner */
+    .spinner {
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: #8b5cf6;
+      border-radius: 50%;
+      width: 22px; height: 22px;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Fade in */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(30px);
+      animation: fadeUp 0.7s ease forwards;
+    }
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.3s; }
+    .delay-4 { animation-delay: 0.4s; }
+
+    /* Text glow */
+    .text-glow {
+      text-shadow: 0 0 40px rgba(139, 92, 246, 0.6);
+    }
+
+    /* Textarea */
+    textarea {
+      scrollbar-width: thin;
+      scrollbar-color: #6366f1 transparent;
+    }
+    textarea:focus { outline: none; box-shadow: 0 0 0 2px #8b5cf6; }
+
+    /* Error shake */
+    .shake {
+      animation: shake 0.4s ease;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-8px); }
+      75% { transform: translateX(8px); }
+    }
+
+    /* Feature chips */
+    .chip {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    /* Loading overlay */
+    #loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 12, 41, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    #loading-overlay.active { display: flex; }
+
+    .loading-ring {
+      width: 70px; height: 70px;
+      border-radius: 50%;
+      border: 4px solid transparent;
+      border-top-color: #6366f1;
+      border-right-color: #8b5cf6;
+      animation: spin 1s linear infinite;
+    }
+    .loading-pulse {
+      width: 50px; height: 50px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      position: absolute;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(0.8); opacity: 0.6; }
+      50% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="text-white">
+  <!-- Blobs -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay">
+    <div class="relative flex items-center justify-center mb-8">
+      <div class="loading-ring"></div>
+      <div class="loading-pulse"></div>
+    </div>
+    <p class="text-white font-display text-xl font-semibold mb-2">Analyzing Your Resume</p>
+    <p class="text-purple-300 text-sm" id="loading-step">Extracting text from PDF...</p>
+    <div class="mt-6 flex gap-2">
+      <div class="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style="animation-delay:0s"></div>
+      <div class="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style="animation-delay:0.2s"></div>
+      <div class="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style="animation-delay:0.4s"></div>
+    </div>
+  </div>
+
+  <!-- Dark Mode Toggle -->
+  <button id="darkToggle" onclick="toggleTheme()"
+    class="fixed top-5 right-5 z-50 glass rounded-full p-3 hover:scale-110 transition-all duration-300 text-lg"
+    title="Toggle Theme">🌙</button>
+
+  <!-- MAIN -->
+  <main class="relative z-10 min-h-screen flex items-center justify-center px-4 py-16">
+    <div class="w-full max-w-3xl">
+
+      <!-- Header -->
+      <div class="text-center mb-12 fade-up">
+        <div class="inline-flex items-center gap-2 chip rounded-full px-5 py-2 mb-6 text-sm text-purple-300 font-medium">
+          <span class="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></span>
+          AI-Powered • Instant Analysis • ATS Optimized
+        </div>
+        <h1 class="font-display text-5xl md:text-6xl font-extrabold mb-4 text-glow leading-tight">
+          Resume <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Analyzer</span>
+        </h1>
+        <p class="text-gray-300 text-lg max-w-xl mx-auto leading-relaxed">
+          Upload your resume, paste the job description, and get an ATS score, skill gaps, role detection & smart suggestions — instantly.
+        </p>
+      </div>
+
+      <!-- Feature Chips -->
+      <div class="flex flex-wrap justify-center gap-3 mb-10 fade-up delay-1">
+        {% for feat in ["ATS Score", "Skill Gap", "Role Match", "Keywords", "AI Tips", "PDF Report"] %}
+        <span class="chip text-xs text-purple-200 px-4 py-1.5 rounded-full">✦ {{ feat }}</span>
+        {% endfor %}
+      </div>
+
+      <!-- Error Message -->
+      {% if error %}
+      <div class="glass rounded-2xl p-4 mb-6 border border-red-500/30 bg-red-500/10 text-red-300 text-sm flex items-start gap-3 shake fade-up">
+        <span class="text-lg mt-0.5">⚠️</span>
+        <span>{{ error }}</span>
+      </div>
+      {% endif %}
+
+      <!-- Upload Form -->
+      <div class="glass rounded-3xl p-8 md:p-10 fade-up delay-2">
+        <form action="/analyze" method="POST" enctype="multipart/form-data" id="analyzeForm">
+
+          <!-- PDF Upload -->
+          <div class="mb-8">
+            <label class="block font-display font-semibold text-lg mb-3 text-purple-200">
+              📄 Upload Resume (PDF)
+            </label>
+            <div class="drop-zone rounded-2xl p-8 text-center cursor-pointer transition-all duration-300" id="dropZone"
+                 onclick="document.getElementById('resumeInput').click()">
+              <input type="file" id="resumeInput" name="resume" accept=".pdf" class="hidden" onchange="handleFileSelect(this)" />
+              <div id="dropContent">
+                <div class="text-5xl mb-3">📂</div>
+                <p class="text-gray-300 font-medium mb-1">Drop your PDF here or click to browse</p>
+                <p class="text-gray-500 text-sm">Only PDF files supported • Max 10MB</p>
+              </div>
+              <div id="fileSelected" class="hidden">
+                <div class="text-4xl mb-2">✅</div>
+                <p class="text-green-400 font-semibold" id="fileName"></p>
+                <p class="text-gray-400 text-sm mt-1">Click to change file</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Job Description -->
+          <div class="mb-8">
+            <label class="block font-display font-semibold text-lg mb-3 text-purple-200">
+              💼 Job Description
+            </label>
+            <textarea
+              name="job_description"
+              id="jdInput"
+              rows="7"
+              placeholder="Paste the complete job description here — include responsibilities, qualifications, required skills, etc."
+              class="w-full glass rounded-2xl px-5 py-4 text-gray-200 placeholder-gray-500 text-sm resize-none transition-all duration-300 bg-transparent border border-white/10"
+              required
+            ></textarea>
+            <div class="flex justify-between mt-2 text-xs text-gray-500">
+              <span>💡 More detail = more accurate analysis</span>
+              <span id="charCount">0 characters</span>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <button type="submit" id="submitBtn"
+            class="btn-primary w-full py-4 rounded-2xl font-display font-bold text-lg text-white flex items-center justify-center gap-3 tracking-wide">
+            <div class="spinner" id="spinner"></div>
+            <span id="btnText">⚡ Analyze My Resume</span>
+          </button>
+
+        </form>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="grid grid-cols-3 gap-4 mt-8 fade-up delay-4">
+        {% for stat in [("98%", "Accuracy"), ("< 5s", "Analysis Time"), ("12+", "Metrics")] %}
+        <div class="glass rounded-2xl p-4 text-center hover:scale-105 transition-all duration-300">
+          <div class="font-display font-extrabold text-2xl bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">{{ stat[0] }}</div>
+          <div class="text-gray-400 text-xs mt-1">{{ stat[1] }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+    </div>
+  </main>
+
+
+
+  <script>
+    // ─── Theme Toggle ───
+    function toggleTheme() {
+      document.body.classList.toggle('light');
+      const btn = document.getElementById('darkToggle');
+      btn.textContent = document.body.classList.contains('light') ? '🌞' : '🌙';
+    }
+
+    // ─── Drag & Drop ───
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === 'application/pdf') {
+        const input = document.getElementById('resumeInput');
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        handleFileSelect(input);
+      } else {
+        showDropError('Please drop a PDF file only.');
+      }
+    });
+
+    function handleFileSelect(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+          showDropError('Only PDF files are supported.');
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          showDropError('File size must be under 10MB.');
+          return;
+        }
+        document.getElementById('dropContent').classList.add('hidden');
+        document.getElementById('fileSelected').classList.remove('hidden');
+        document.getElementById('fileName').textContent = file.name;
+      }
+    }
+
+    function showDropError(msg) {
+      const drop = document.getElementById('dropZone');
+      drop.style.borderColor = '#ef4444';
+      setTimeout(() => drop.style.borderColor = '', 2000);
+    }
+
+    // ─── Char Counter ───
+    const jd = document.getElementById('jdInput');
+    jd.addEventListener('input', () => {
+      document.getElementById('charCount').textContent = jd.value.length + ' characters';
+    });
+
+    // ─── Form Submit with Loading ───
+    const steps = [
+      "Extracting text from PDF...",
+      "Running TF-IDF analysis...",
+      "Detecting skills & keywords...",
+      "Computing ATS score...",
+      "Generating AI suggestions...",
+      "Almost done!"
+    ];
+    let stepIdx = 0;
+
+    document.getElementById('analyzeForm').addEventListener('submit', function(e) {
+      const resume = document.getElementById('resumeInput').files[0];
+      const jdVal = document.getElementById('jdInput').value.trim();
+
+      if (!resume) {
+        e.preventDefault();
+        dropZone.classList.add('shake');
+        setTimeout(() => dropZone.classList.remove('shake'), 400);
+        return;
+      }
+      if (!jdVal) {
+        e.preventDefault();
+        document.getElementById('jdInput').focus();
+        return;
+      }
+
+      document.getElementById('loading-overlay').classList.add('active');
+      const stepEl = document.getElementById('loading-step');
+      const interval = setInterval(() => {
+        if (stepIdx < steps.length - 1) {
+          stepIdx++;
+          stepEl.textContent = steps[stepIdx];
+        } else {
+          clearInterval(interval);
+        }
+      }, 1200);
+    });
+  </script>
+
+
+{% if error %}
+<p style="color:red; font-weight:bold;">{{ error }}</p>
+{% endif %}
+
+
+</body>
+</html>
